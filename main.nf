@@ -797,8 +797,8 @@ process MapReads {
     input = hasExtension(inputFile1, "bam") ? "-p /dev/stdin - 2> >(tee ${inputFile1}.bwa.stderr.log >&2)" : "${inputFile1} ${inputFile2}"
     // Pseudo-code: Add soft-coded memory allocation to the two tools, bwa mem | smatools sort
     // Request only one from the user, the other is implicit: 1 - defined
-    bwa_cpus  = params.bwa_cpus  ? params.bwa_cpus  : Math.floor ( params.bwa_cpus_fraction * task.cpus) as Integer
-    sort_cpus = params.sort_cpus ? params.sort_cpus : task.cpus - bwa_cpus
+    bwa_cpus  = !params.bwa_cpus_fraction ? task.cpus : Math.floor ( params.bwa_cpus_fraction * task.cpus) as Integer
+    sort_cpus = !params.bwa_cpus_fraction ? task.cpus : task.cpus - bwa_cpus
     """
         ${convertToFastq}
         bwa mem -k 23 -K 100000000 -R \"${readGroup}\" ${extra} -t ${bwa_cpus} -M ${fasta} \
