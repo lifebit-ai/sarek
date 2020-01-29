@@ -2869,7 +2869,8 @@ compressVCFsnpEffOut = compressVCFsnpEffOut.dump(tag:'VCF')
 
 process VEP {
     label 'VEP'
-    label 'cpus_4'
+    label 'max_cpus'
+    label 'max_memory'
 
     echo true
     tag {"${idSample} - ${variantCaller} - ${vcf}"}
