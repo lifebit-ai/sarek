@@ -1952,8 +1952,8 @@ vcfConcatenateVCFs = mutect2Output.mix(vcfFreeBayes, vcfGenotypeGVCFs, gvcfHaplo
 vcfConcatenateVCFs = vcfConcatenateVCFs.dump(tag:'VCF to merge')
 
 process ConcatVCF {
-    label 'max_cpus'
-    label 'max_memory'
+    label 'cpus_max'
+    label 'memory_max'
 
     tag {variantCaller + "-" + idSample}
 
@@ -2869,8 +2869,9 @@ compressVCFsnpEffOut = compressVCFsnpEffOut.dump(tag:'VCF')
 
 process VEP {
     label 'VEP'
-    label 'max_cpus'
-    label 'max_memory'
+    label 'cpus_max'
+    label 'memory_max'
+
 
     echo true
     tag {"${idSample} - ${variantCaller} - ${vcf}"}
