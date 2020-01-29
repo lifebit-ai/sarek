@@ -425,6 +425,7 @@ process BuildBWAindexes {
 ch_bwaIndex = params.bwaIndex ? Channel.value(file(params.bwaIndex)) : bwaIndexes
 
 process BuildDict {
+    label 'cpus_1'
     tag {fasta}
 
     publishDir params.outdir, mode: params.publishDirMode,
@@ -877,7 +878,7 @@ singleBamSentieon = singleBamSentieon.dump(tag:'Single BAM')
 multipleBam = multipleBam.mix(multipleBamSentieon)
 
 process MergeBamMapped {
-    label 'med_resources'
+    label 'cpus_4'
 
     tag {idPatient + "-" + idSample}
 
@@ -906,7 +907,7 @@ mergedBam = mergedBam.dump(tag:'BAMs for MD')
 mergedBamForSentieon = mergedBamForSentieon.dump(tag:'Sentieon BAMs to Index')
 
 process IndexBamMergedForSentieon {
-    label 'med_resources'
+    label 'cpus_4'
 
     tag {idPatient + "-" + idSample}
 
@@ -925,7 +926,7 @@ process IndexBamMergedForSentieon {
 (mergedBam, mergedBamToIndex) = mergedBam.into(2)
 
 process IndexBamFile {
-    label 'med_resources'
+    label 'cpus_4'
 
     tag {idPatient + "-" + idSample}
 
@@ -1053,7 +1054,7 @@ process SentieonDedup {
 // STEP 3: CREATING RECALIBRATION TABLES
 
 process BaseRecalibrator {
-    label 'med_resources'
+    label 'cpus_1'
 
     tag {idPatient + "-" + idSample + "-" + intervalBed.baseName}
 
@@ -1105,8 +1106,8 @@ if (params.no_intervals) {
 // STEP 3.5: MERGING RECALIBRATION TABLES
 
 process GatherBQSRReports {
-    label 'memory_singleCPU_2_task'
-    label 'cpus_2'
+
+    label 'cpus_1'
 
     tag {idPatient + "-" + idSample}
 
@@ -1174,8 +1175,7 @@ bamApplyBQSR = bamApplyBQSR.dump(tag:'BAM + BAI + RECAL TABLE + INT')
 
 process ApplyBQSR {
 
-    label 'memory_singleCPU_2_task'
-    label 'cpus_2'
+    label 'cpus_1'
 
     tag {idPatient + "-" + idSample + "-" + intervalBed.baseName}
 
@@ -1296,7 +1296,8 @@ bamRecalSentieonSampleTSV
 // STEP 4.5.1: MERGING THE RECALIBRATED BAM FILES
 
 process MergeBamRecal {
-    label 'med_resources'
+    label 'cpus_max'
+    label 'memory_max'
 
     tag {idPatient + "-" + idSample}
 
@@ -1319,50 +1320,11 @@ process MergeBamRecal {
     samtools index ${idSample}.recal.bam
     """
 }
-bamGenomeChroniclerToPrint.view()
-
-// TODO: Bind this with HaplotypeCaller output and migrate process chuck after HaplotypeCasller + VEP
-Channel.fromPath(params.vepFile)
-       .ifEmpty { exit 1, "--vepFile not specified or no file found at that destination with the suffix .html. Please make sure to provide the file path correctly}" }
-       .set { vepGenomeChronicler }
-
-
-// STEP 4.5.2: RUNNING GenomeChronicler FOR THE RECALIBRATED BAM FILES
-// TODO: Update this when there is a different VEP html report for each bam
-process RunGenomeChronicler {
-
-  label 'cpus_max'
-  label 'memory_max'
-
-  tag "$bam"
-  publishDir "$params.outdir/GenomeChronicler", mode: 'copy'
-
-  input:
-  file(bam) from bamGenomeChronicler
-  each file(vep) from vepGenomeChronicler
-
-  output:
-  file("results_${bam.simpleName}") into chronicler_results
-
-  when: 'genomechronicler' in tools
-
-  script:
-  
-  optional_argument = vep.endsWith("no_vepFile.txt") ? '' : "--vepFile ${vep}"
-
-  """
-  genomechronicler \
-  --resultsDir '/GenomeChronicler' \
-  --bamFile $bam $optional_argument &> STDERR.txt
-  cp -r /GenomeChronicler/results/results_${bam.simpleName} .
-  mv STDERR.txt results_${bam.simpleName}/
-  """
-}
 
 // STEP 4.5': INDEXING THE RECALIBRATED BAM FILES
 
 process IndexBamRecal {
-    label 'med_resources'
+    label 'cpus_4'
 
     tag {idPatient + "-" + idSample}
 
@@ -1415,7 +1377,7 @@ bamRecalSampleTSV
 // STEP 5: QC
 
 process SamtoolsStats {
-    label 'cpus_2'
+    label 'cpus_1'
 
     tag {idPatient + "-" + idSample}
 
@@ -1440,8 +1402,7 @@ samtoolsStatsReport = samtoolsStatsReport.dump(tag:'SAMTools')
 bamBamQC = bamMappedBamQC.mix(bamRecalBamQC)
 
 process BamQC {
-    label 'memory_max'
-    label 'cpus_max'
+    label 'cpus_4'
 
     tag {idPatient + "-" + idSample}
 
@@ -1506,28 +1467,34 @@ bamHaplotypeCaller = bamRecalAllTemp.combine(intHaplotypeCaller)
 
 // STEP GATK HAPLOTYPECALLER.1
 
+// TODO: The channel name gvcfHaplotypeCaller could be more general -=g
+// COMMENT: There param -ERC GVCF is not optional, hence there will always be g.vcf files
 process HaplotypeCaller {
-
-    label 'forks_max'
-    label 'cpus_1'
 
     tag {idSample + "-" + intervalBed.baseName}
 
     input:
         set idPatient, idSample, file(bam), file(bai), file(intervalBed) from bamHaplotypeCaller
-        file(dbsnp) from ch_dbsnp
-        file(dbsnpIndex) from ch_dbsnpIndex
-        file(dict) from ch_dict
-        file(fasta) from ch_fasta
-        file(fastaFai) from ch_fastaFai
+        each file(dbsnp) from ch_dbsnp
+        each file(dbsnpIndex) from ch_dbsnpIndex
+        each file(dict) from ch_dict
+        each file(fasta) from ch_fasta
+        each file(fastaFai) from ch_fastaFai
 
     output:
-        set val("HaplotypeCallerGVCF"), idPatient, idSample, file("${intervalBed.baseName}_${idSample}.g.vcf") into gvcfHaplotypeCaller
-        set idPatient, idSample, file(intervalBed), file("${intervalBed.baseName}_${idSample}.g.vcf") into gvcfGenotypeGVCFs
+    // WIP: Remove after  testing
+        set val("HaplotypeCaller${gvcf_tag}"), idPatient, idSample, file(outputVcf), file("${outputVcf}.idx") into vcfHaplotypeCallerVEP
+        set val("HaplotypeCaller${gvcf_tag}"), idPatient, idSample, file(outputVcf) into gvcfHaplotypeCaller
+        set idPatient, idSample, file(intervalBed), file(outputVcf) into gvcfGenotypeGVCFs
 
     when: 'haplotypecaller' in tools
 
     script:
+    name = "${intervalBed.baseName}_${idSample}"
+    output_suffix = params.noGVCF ? '.vcf' : '.g.vcf'
+    outputVcf = name + output_suffix
+    gvcf_arg = params.noGVCF ? '' : '-ERC GVCF'
+    gvcf_tag = params.noGVCF ? '' : 'GVCF'
     """
     gatk --java-options "-Xmx${task.memory.toGiga()}g -Xms6000m -XX:GCTimeLimit=50 -XX:GCHeapFreeLimit=10" \
         HaplotypeCaller \
@@ -1535,15 +1502,21 @@ process HaplotypeCaller {
         -I ${bam} \
         -L ${intervalBed} \
         -D ${dbsnp} \
-        -O ${intervalBed.baseName}_${idSample}.g.vcf \
-        -ERC GVCF
+        -O ${outputVcf} \
+        ${gvcf_arg}
     """
 }
 
-gvcfHaplotypeCaller = gvcfHaplotypeCaller.groupTuple(by:[0, 1, 2])
+if (params.noGVCF) {
+    gvcfHaplotypeCaller = gvcfHaplotypeCaller.groupTuple(by:[0, 1, 2])
+    gvcfHaplotypeCaller = gvcfHaplotypeCaller.dump(tag:'noGVCF HaplotypeCaller')
+    }
 
-if (params.noGVCF) gvcfHaplotypeCaller.close()
-else gvcfHaplotypeCaller = gvcfHaplotypeCaller.dump(tag:'GVCF HaplotypeCaller')
+// If noGVCF flag is provided, GenotypeGVCFs shoyld not be executed
+// We achieve this by close()-ing the GenotypeGVCFs input data channel 
+// Also with the explicit statement: "when: !(params.noGVCF) && ('haplotypecaller' in tools)" (see 'GenotypeGVCFs' process)
+if (params.noGVCF) gvcfGenotypeGVCFs.close()
+
 
 // STEP GATK HAPLOTYPECALLER.2
 
@@ -1561,7 +1534,7 @@ process GenotypeGVCFs {
     output:
     set val("HaplotypeCaller"), idPatient, idSample, file("${intervalBed.baseName}_${idSample}.vcf") into vcfGenotypeGVCFs
 
-    when: 'haplotypecaller' in tools
+    when: !(params.noGVCF) && ('haplotypecaller' in tools)
 
     script:
     // Using -L is important for speed and we have to index the interval files also
@@ -1849,7 +1822,6 @@ bamMpileup = bamMpileup.spread(intMpileup)
 
 process FreeBayes {
 
-    label 'forks_max'
     label 'cpus_1'
 
     tag {idSampleTumor + "_vs_" + idSampleNormal + "-" + intervalBed.baseName}
@@ -1889,7 +1861,6 @@ vcfFreeBayes = vcfFreeBayes.groupTuple(by:[0,1,2])
 process Mutect2 {
     tag {idSampleTumor + "_vs_" + idSampleNormal + "-" + intervalBed.baseName}
 
-    label 'forks_max'
     label 'cpus_1'
 
 
@@ -1981,7 +1952,8 @@ vcfConcatenateVCFs = mutect2Output.mix(vcfFreeBayes, vcfGenotypeGVCFs, gvcfHaplo
 vcfConcatenateVCFs = vcfConcatenateVCFs.dump(tag:'VCF to merge')
 
 process ConcatVCF {
-    label 'med_resources'
+    label 'max_cpus'
+    label 'max_memory'
 
     tag {variantCaller + "-" + idSample}
 
@@ -2011,7 +1983,7 @@ process ConcatVCF {
     """
 }
 
-(vcfConcatenated, vcfConcatenatedForFilter) = vcfConcatenated.into(2)
+(vcfConcatenatedForVEP, vcfConcatenatedForFilter) = vcfConcatenated.into(2)
 vcfConcatenated = vcfConcatenated.dump(tag:'VCF')
 
 // STEP GATK MUTECT2.3 - GENERATING PILEUP SUMMARIES
@@ -2019,7 +1991,6 @@ vcfConcatenated = vcfConcatenated.dump(tag:'VCF')
 process PileupSummariesForMutect2 {
     tag {idSampleTumor + "_vs_" + idSampleNormal + "_" + intervalBed.baseName }
 
-    label 'forks_max'
     label 'cpus_1'
 
     input:
@@ -2052,7 +2023,6 @@ pileupSummaries = pileupSummaries.groupTuple(by:[0,1])
 
 process MergePileupSummaries {
 
-    label 'forks_max'
     label 'cpus_1'
 
     tag {idPatient + "_" + idSampleTumor}
@@ -2082,7 +2052,6 @@ process MergePileupSummaries {
 
 process CalculateContamination {
 
-    label 'forks_max'
     label 'cpus_1'
 
     tag {idSampleTumor + "_vs_" + idSampleNormal}
@@ -2112,7 +2081,6 @@ process CalculateContamination {
 
 process FilterMutect2Calls {
 
-    label 'forks_max'
     label 'cpus_1'
 
     tag {idSampleTN}
@@ -2388,7 +2356,7 @@ vcfStrelkaBP = vcfStrelkaBP.dump(tag:'Strelka BP')
 // Run commands and code from Malin Larsson
 // Based on Jesper Eisfeldt's code
 process AlleleCounter {
-    label 'memory_singleCPU_2_task'
+    label 'cpus_2'
 
     tag {idSample}
 
@@ -2433,7 +2401,7 @@ alleleCounterOut = alleleCounterOut.map {
 // R script from Malin Larssons bitbucket repo:
 // https://bitbucket.org/malinlarsson/somatic_wgs_pipeline
 process ConvertAlleleCounts {
-    label 'memory_singleCPU_2_task'
+    label 'cpus_2'
 
     tag {idSampleTumor + "_vs_" + idSampleNormal}
 
@@ -2459,7 +2427,7 @@ process ConvertAlleleCounts {
 // R scripts from Malin Larssons bitbucket repo:
 // https://bitbucket.org/malinlarsson/somatic_wgs_pipeline
 process Ascat {
-    label 'memory_singleCPU_2_task'
+    label 'cpus_2'
 
     tag {idSampleTumor + "_vs_" + idSampleNormal}
 
@@ -2487,7 +2455,7 @@ ascatOut.dump(tag:'ASCAT')
 // STEP MPILEUP.1
 
 process Mpileup {
-    label 'memory_singleCPU_2_task'
+    label 'cpus_2'
 
     tag {idSample + "-" + intervalBed.baseName}
 
@@ -2567,7 +2535,7 @@ mpileupOut = mpileupOut.map {
 // STEP CONTROLFREEC.1 - CONTROLFREEC
 
 process ControlFREEC {
-    label 'memory_singleCPU_2_task'
+    label 'cpus_2'
 
     tag {idSampleTumor + "_vs_" + idSampleNormal}
 
@@ -2631,7 +2599,7 @@ controlFreecOut.dump(tag:'ControlFREEC')
 // STEP CONTROLFREEC.3 - VISUALIZATION
 
 process ControlFreecViz {
-    label 'memory_singleCPU_2_task'
+    label 'cpus_2'
 
     tag {idSampleTumor + "_vs_" + idSampleNormal}
 
@@ -2658,12 +2626,17 @@ process ControlFreecViz {
 controlFreecVizOut.dump(tag:'ControlFreecViz')
 
 // Remapping channels for QC and annotation
+// Where is HaplotypeCaller and Mutect here? // Added vcfConcatenatedForVEP below
 
 (vcfStrelkaIndels, vcfStrelkaSNVS) = vcfStrelka.into(2)
 (vcfStrelkaBPIndels, vcfStrelkaBPSNVS) = vcfStrelkaBP.into(2)
 (vcfMantaSomaticSV, vcfMantaDiploidSV) = vcfManta.into(2)
 
 vcfKeep = Channel.empty().mix(
+    vcfConcatenatedForVEP.map {
+        variantcaller, idPatient, idSample, vcf, tbi ->
+        [variantcaller, idSample, vcf]
+    },
     vcfSentieon.map {
         variantcaller, idPatient, idSample, vcf, tbi ->
         [variantcaller, idSample, vcf]
@@ -2711,7 +2684,6 @@ vcfKeep = Channel.empty().mix(
 
 process BcftoolsStats {
 
-    label 'forks_max'
     label 'cpus_1'
 
     tag {"${variantCaller} - ${vcf}"}
@@ -2736,7 +2708,6 @@ bcftoolsReport = bcftoolsReport.dump(tag:'BCFTools')
 
 process Vcftools {
 
-    label 'forks_max'
     label 'cpus_1'
 
     tag {"${variantCaller} - ${vcf}"}
@@ -2789,6 +2760,7 @@ if (step == 'annotate') {
     // Without *SmallIndels.vcf.gz from Manta, and *.genome.vcf.gz from Strelka
     // The small snippet `vcf.minus(vcf.fileName)[-2]` catches idSample
     // This field is used to output final annotated VCFs in the correct directory
+    // TODO: *.vcf.gz test for GatherVcfs
       Channel.empty().mix(
         Channel.fromPath("${params.outdir}/VariantCalling/*/HaplotypeCaller/*.vcf.gz")
           .flatten().map{vcf -> ['HaplotypeCaller', vcf.minus(vcf.fileName)[-2].toString(), vcf]},
@@ -2897,7 +2869,7 @@ compressVCFsnpEffOut = compressVCFsnpEffOut.dump(tag:'VCF')
 
 process VEP {
     label 'VEP'
-    label 'med_resources'
+    label 'cpus_4'
 
     echo true
     tag {"${idSample} - ${variantCaller} - ${vcf}"}
@@ -2930,8 +2902,6 @@ process VEP {
     cadd = (params.cadd_cache && params.cadd_WG_SNVs && params.cadd_InDels) ? "--plugin CADD,whole_genome_SNVs.tsv.gz,InDels.tsv.gz" : ""
     genesplicer = params.genesplicer ? "--plugin GeneSplicer,/opt/conda/envs/nf-core-sarek-${workflow.manifest.version}/bin/genesplicer,/opt/conda/envs/nf-core-sarek-${workflow.manifest.version}/share/genesplicer-1.0-1/human,context=200,tmpdir=\$PWD/${reducedVCF}" : "--offline"
     """
-    hello_message="I am here at VEP"
-    echo $hello_message
     mkdir ${reducedVCF}
 
     vep \
@@ -2963,7 +2933,7 @@ vepReport = vepReport.dump(tag:'VEP')
 
 process VEPmerge {
     label 'VEP'
-    label 'med_resources'
+    label 'cpus_4'
 
     tag {"${idSample} - ${variantCaller} - ${vcf}"}
 
@@ -3045,6 +3015,46 @@ process CompressVCFvep {
 
 compressVCFOutVEP = compressVCFOutVEP.dump(tag:'VCF')
 
+// STEP GENOMECHRONICLER
+
+// Initialise a channel to mock vep html report file
+Channel.fromPath(params.vepFile)
+       .ifEmpty { exit 1, "--vepFile not specified or no file found at that destination with the suffix .html. Please make sure to provide the file path correctly}" }
+       .set { vepGenomeChronicler }
+
+// STEP 4.5.2: RUNNING GenomeChronicler FOR THE RECALIBRATED BAM FILES
+// TODO: Update this when there is a different VEP html report for each bam
+process RunGenomeChronicler {
+
+  label 'cpus_max'
+  label 'memory_max'
+  label 'GenomeChronicler'
+
+  tag "$bam"
+  publishDir "$params.outdir/GenomeChronicler", mode: 'copy'
+
+  input:
+  file(bam) from bamGenomeChronicler
+  file(vep) from vepReport
+
+  output:
+  file("results_${bam.simpleName}") into chronicler_results
+
+  when: 'genomechronicler' in tools
+
+  script:
+
+  optional_argument = vep.endsWith("no_vepFile.txt") ? '' : "--vepFile ${vep}"
+
+  """
+  genomechronicler \
+  --resultsDir '/GenomeChronicler' \
+  --bamFile $bam $optional_argument &> STDERR.txt
+  cp -r /GenomeChronicler/results/results_${bam.simpleName} .
+  mv STDERR.txt results_${bam.simpleName}/
+  """
+}
+
 /*
 ================================================================================
                                      MultiQC
@@ -3055,8 +3065,7 @@ compressVCFOutVEP = compressVCFOutVEP.dump(tag:'VCF')
 
 process MultiQC {
 
-    label 'cpus_max'
-    label 'memory_max'
+    label 'cpus_2'
 
     publishDir "${params.outdir}/MultiQC", mode: params.publishDirMode
 
