@@ -241,8 +241,11 @@ if (workflow.profile.contains('awsbatch')) {
 // Stage config files
 ch_multiqc_config = file("${params.projectDir}/assets/multiqc_config.yaml", checkIfExists: true)
 ch_multiqc_custom_config = params.multiqc_config ? Channel.fromPath(params.multiqc_config, checkIfExists: true) : Channel.empty()
+
+if (!skipQC.contains('documentation')) {
 ch_output_docs = file("${params.projectDir}/docs/output.md", checkIfExists: true)
 ch_output_docs_images = file("${params.projectDir}/docs/images/", checkIfExists: true)
+}
 
 // Handle input
 tsvPath = null
