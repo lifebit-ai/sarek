@@ -1999,7 +1999,7 @@ process HaplotypeCaller {
     intervalsOptions = params.no_intervals ? "" : "-L ${intervalBed}"
     dbsnpOptions = params.dbsnp ? "--D ${dbsnp}" : ""
     """
-    gatk --java-options "-Xmx${task.memory.toGiga()}g -Xms6000m -XX:GCTimeLimit=50 -XX:GCHeapFreeLimit=10" \
+    gatk --java-options "-Xmx${task.memory.toGiga()}g -Xms4000m -XX:GCTimeLimit=50 -XX:GCHeapFreeLimit=10" \
         HaplotypeCaller \
         -R ${fasta} \
         -I ${bam} \
