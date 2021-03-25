@@ -239,10 +239,13 @@ if (workflow.profile.contains('awsbatch')) {
 
 // MultiQC
 // Stage config files
-ch_multiqc_config = file("$projectDir/assets/multiqc_config.yaml", checkIfExists: true)
+ch_multiqc_config = file("${params.projectDir}/assets/multiqc_config.yaml", checkIfExists: true)
 ch_multiqc_custom_config = params.multiqc_config ? Channel.fromPath(params.multiqc_config, checkIfExists: true) : Channel.empty()
-ch_output_docs = file("$projectDir/docs/output.md", checkIfExists: true)
-ch_output_docs_images = file("$projectDir/docs/images/", checkIfExists: true)
+
+if (!skipQC.contains('documentation')) {
+ch_output_docs = file("${params.projectDir}/docs/output.md", checkIfExists: true)
+ch_output_docs_images = file("${params.projectDir}/docs/images/", checkIfExists: true)
+}
 
 // Handle input
 tsvPath = null
@@ -1996,7 +1999,7 @@ process HaplotypeCaller {
     intervalsOptions = params.no_intervals ? "" : "-L ${intervalBed}"
     dbsnpOptions = params.dbsnp ? "--D ${dbsnp}" : ""
     """
-    gatk --java-options "-Xmx${task.memory.toGiga()}g -Xms6000m -XX:GCTimeLimit=50 -XX:GCHeapFreeLimit=10" \
+    gatk --java-options "-Xmx${task.memory.toGiga()}g -Xms4000m -XX:GCTimeLimit=50 -XX:GCHeapFreeLimit=10" \
         HaplotypeCaller \
         -R ${fasta} \
         -I ${bam} \
@@ -3891,7 +3894,9 @@ process MultiQC {
 
 ch_multiqc_report.dump(tag:'MultiQC')
 
+
 // Output Description HTML
+if (!skipQC.contains('documentation')) {
 process Output_documentation {
     publishDir "${params.outdir}/pipeline_info", mode: params.publish_dir_mode
 
@@ -3909,6 +3914,8 @@ process Output_documentation {
     markdown_to_html.py $output_docs -o results_description.html
     """
 }
+}
+if (params.on_complete) {
 
 // Completion e-mail notification
 workflow.onComplete {
@@ -3962,18 +3969,18 @@ workflow.onComplete {
 
     // Render the TXT template
     def engine = new groovy.text.GStringTemplateEngine()
-    def tf = new File("$projectDir/assets/email_template.txt")
+    def tf = new File("${params.projectDir}/assets/email_template.txt")
     def txt_template = engine.createTemplate(tf).make(email_fields)
     def email_txt = txt_template.toString()
 
     // Render the HTML template
-    def hf = new File("$projectDir/assets/email_template.html")
+    def hf = new File("${params.projectDir}/assets/email_template.html")
     def html_template = engine.createTemplate(hf).make(email_fields)
     def email_html = html_template.toString()
 
     // Render the sendmail template
-    def smail_fields = [ email: email_address, subject: subject, email_txt: email_txt, email_html: email_html, projectDir: "$projectDir", mqcFile: mqc_report, mqcMaxSize: params.max_multiqc_email_size.toBytes() ]
-    def sf = new File("$projectDir/assets/sendmail_template.txt")
+    def smail_fields = [ email: email_address, subject: subject, email_txt: email_txt, email_html: email_html, projectDir: "${params.projectDir}", mqcFile: mqc_report, mqcMaxSize: params.max_multiqc_email_size.toBytes() ]
+    def sf = new File("${params.projectDir}/assets/sendmail_template.txt")
     def sendmail_template = engine.createTemplate(sf).make(smail_fields)
     def sendmail_html = sendmail_template.toString()
 
@@ -4022,6 +4029,7 @@ workflow.onComplete {
         checkHostname()
         log.info "-${c_purple}[nf-core/sarek]${c_red} Pipeline completed with errors${c_reset}-"
     }
+}
 }
 
 /*

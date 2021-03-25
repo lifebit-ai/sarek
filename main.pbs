@@ -1,0 +1,19 @@
+#!/bin/bash
+#SBATCH -o logs.%j.out
+#SBATCH -e logs.%j.err
+#SBATCH --mail-type=END,FAIL
+#SBATCH --mail-user=$USER@my-org.org
+#SBATCH --mem=20000
+#SBATCH --cpus-per-task=4
+#SBATCH -p compute
+#SBATCH -q batch
+#SBATCH -t 3-00:00:00 
+
+cd $SLURM_SUBMIT_DIR
+date;hostname;pwd
+
+module load singularity
+
+curl -fsSL https://get.nextflow.io | bash
+
+./nextflow run /absolut/path/to/pipeline/repo/main.nf --outdir ${SLURM_SUBMIT_DIR} --param1 param1_value
