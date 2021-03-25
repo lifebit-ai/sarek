@@ -4,6 +4,7 @@ on:
   push:
     branches:
       - dev
+      - master
   pull_request:
   release:
     types: [published]
@@ -18,9 +19,10 @@ jobs:
       NXF_VER: ${{ matrix.nxf_ver }}
       NXF_ANSI_LOG: false
     strategy:
+      fail-fast: false
       matrix:
         # Nextflow versions: check pipeline minimum and current latest
-        nxf_ver: ['20.04.0', '']
+        nxf_ver: ['20.01.0', '']
     steps:
       - name: Check out pipeline code
         uses: actions/checkout@v2
@@ -68,7 +70,7 @@ jobs:
           sudo mv nextflow /usr/local/bin/
         env:
           # Only check Nextflow pipeline minimum version
-          NXF_VER: '20.04.0'
+          NXF_VER: '20.01.0'
       - name: Pull docker image
         run: |
           docker pull nfcore/sarek:2.7
@@ -91,7 +93,7 @@ jobs:
           sudo mv nextflow /usr/local/bin/
         env:
           # Only check Nextflow pipeline minimum version
-          NXF_VER: '20.04.0'
+          NXF_VER: '20.01.0'
       - name: Pull docker image
         run: docker pull nfcore/sarek:2.7
       - name: Get test data
@@ -119,7 +121,7 @@ jobs:
           sudo mv nextflow /usr/local/bin/
         env:
           # Only check Nextflow pipeline minimum version
-          NXF_VER: '20.04.0'
+          NXF_VER: '20.01.0'
       - name: Pull docker image
         run: docker pull nfcore/sarek:2.7
       - name: Run test for minimal genomes
@@ -140,7 +142,7 @@ jobs:
           sudo mv nextflow /usr/local/bin/
         env:
           # Only check Nextflow pipeline minimum version
-          NXF_VER: '20.04.0'
+          NXF_VER: '20.01.0'
       - name: Pull docker image
         run: docker pull nfcore/sarek:2.7
       - name: Run ${{ matrix.profile }} test
@@ -161,7 +163,7 @@ jobs:
           sudo mv nextflow /usr/local/bin/
         env:
           # Only check Nextflow pipeline minimum version
-          NXF_VER: '20.04.0'
+          NXF_VER: '20.01.0'
       - name: Pull docker image
         run: docker pull nfcore/sarek:2.7
       - name: Run ${{ matrix.profile }} test
@@ -192,7 +194,7 @@ jobs:
           sudo mv nextflow /usr/local/bin/
         env:
           # Only check Nextflow pipeline minimum version
-          NXF_VER: '20.04.0'
+          NXF_VER: '20.01.0'
       - name: Pull docker image
         run: docker pull nfcore/sarek:2.7
       - name: Run ${{ matrix.tool }} test
