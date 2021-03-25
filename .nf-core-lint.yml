@@ -1,0 +1,17 @@
+actions_awsfulltest : False
+actions_awstest : False
+actions_ci : False
+actions_schema_validation : False
+conda_dockerfile : False
+conda_env_yaml : False
+files_exist : False
+files_unchanged : False
+merge_markers : False
+nextflow_config : False
+pipeline_name_conventions : False
+pipeline_todos : False
+readme : False
+schema_lint : False
+schema_params : False
+template_strings : False
+version_consistency : False
