@@ -3894,7 +3894,9 @@ process MultiQC {
 
 ch_multiqc_report.dump(tag:'MultiQC')
 
+
 // Output Description HTML
+if (!skipQC.contains('documentation')) {
 process Output_documentation {
     publishDir "${params.outdir}/pipeline_info", mode: params.publish_dir_mode
 
@@ -3912,7 +3914,7 @@ process Output_documentation {
     markdown_to_html.py $output_docs -o results_description.html
     """
 }
-
+}
 if (params.on_complete) {
 
 // Completion e-mail notification
