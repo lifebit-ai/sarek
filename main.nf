@@ -42,6 +42,7 @@ def helpMessage() {
                                           Default: ${params.step}
       --genome                      [str] Name of iGenomes reference
                                           Default: ${params.genome}
+      --sra                        [bool] If the input are sra acessions. Default: fasle
 
     Main options:
       --help                       [bool] You're reading it
