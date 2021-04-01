@@ -42,6 +42,7 @@ def helpMessage() {
                                           Default: ${params.step}
       --genome                      [str] Name of iGenomes reference
                                           Default: ${params.genome}
+      --sra                        [bool] If the input are sra acessions. Default: fasle
 
     Main options:
       --help                       [bool] You're reading it
@@ -2033,7 +2034,7 @@ process HaplotypeCaller {
     intervalsOptions = params.no_intervals ? "" : "-L ${intervalBed}"
     dbsnpOptions = params.dbsnp ? "--D ${dbsnp}" : ""
     """
-    gatk --java-options "-Xmx${task.memory.toGiga()}g -Xms6000m -XX:GCTimeLimit=50 -XX:GCHeapFreeLimit=10" \
+    gatk --java-options "-Xmx${task.memory.toGiga()}g -Xms4000m -XX:GCTimeLimit=50 -XX:GCHeapFreeLimit=10" \
         HaplotypeCaller \
         -R ${fasta} \
         -I ${bam} \
